@@ -1,6 +1,6 @@
 # Sistema de Biblioteca (PyQt + SQL)
 
-**[Versão em Português](README.pt-BR.md)**
+**[English Version](README.md)**
 
 Projeto simples de biblioteca com:
 - Interface grafica em PyQt6
