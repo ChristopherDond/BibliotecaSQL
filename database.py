@@ -63,11 +63,19 @@ class Database:
 
         if "atualizado_em" not in columns:
             conn.execute(
-                "ALTER TABLE livros ADD COLUMN atualizado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                "ALTER TABLE livros "
+                "ADD COLUMN atualizado_em TEXT NOT NULL "
+                "DEFAULT CURRENT_TIMESTAMP"
             )
 
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_livros_titulo ON livros (titulo)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_livros_autor ON livros (autor)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_livros_titulo "
+            "ON livros (titulo)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_livros_autor "
+            "ON livros (autor)"
+        )
 
     def _migration_v2_rebuild_constraints(self, conn: sqlite3.Connection):
         cursor = conn.execute(
@@ -149,11 +157,21 @@ class Database:
         ordenar_por: str = "id",
         ordem: str = "DESC",
     ):
-        colunas_validas = {"id", "titulo", "autor", "ano", "disponivel", "criado_em", "atualizado_em"}
-        coluna_ordenacao = ordenar_por if ordenar_por in colunas_validas else "id"
-        direcao_ordenacao = "ASC" if ordem.upper() == "ASC" else "DESC"
+        colunas_validas = {
+            "id", "titulo", "autor", "ano", "disponivel",
+            "criado_em", "atualizado_em"
+        }
+        coluna_ordenacao = (
+            ordenar_por if ordenar_por in colunas_validas else "id"
+        )
+        direcao_ordenacao = (
+            "ASC" if ordem.upper() == "ASC" else "DESC"
+        )
 
-        sql = "SELECT id, titulo, autor, ano, disponivel, criado_em, atualizado_em FROM livros"
+        sql = (
+            "SELECT id, titulo, autor, ano, disponivel, criado_em, "
+            "atualizado_em FROM livros"
+        )
         filtros = []
         parametros: list[object] = []
 
@@ -179,7 +197,9 @@ class Database:
         with self._get_connection() as conn:
             cursor = conn.execute(
                 """
-                SELECT id, titulo, autor, ano, disponivel, criado_em, atualizado_em
+                SELECT
+                    id, titulo, autor, ano, disponivel,
+                    criado_em, atualizado_em
                 FROM livros
                 WHERE id = ?
                 """,
@@ -187,12 +207,15 @@ class Database:
             )
             return cursor.fetchone()
 
-    def atualizar_livro(self, livro_id: int, titulo: str, autor: str, ano: int | None):
+    def atualizar_livro(
+        self, livro_id: int, titulo: str, autor: str, ano: int | None
+    ):
         with self._get_connection() as conn:
             conn.execute(
                 """
                 UPDATE livros
-                SET titulo = ?, autor = ?, ano = ?, atualizado_em = CURRENT_TIMESTAMP
+                SET titulo = ?, autor = ?, ano = ?,
+                    atualizado_em = CURRENT_TIMESTAMP
                 WHERE id = ?
                 """,
                 (titulo.strip(), autor.strip(), ano, livro_id),
@@ -202,7 +225,11 @@ class Database:
     def atualizar_disponibilidade(self, livro_id: int, disponivel: int):
         with self._get_connection() as conn:
             conn.execute(
-                "UPDATE livros SET disponivel = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
+                """
+                UPDATE livros
+                SET disponivel = ?, atualizado_em = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
                 (disponivel, livro_id),
             )
             conn.commit()

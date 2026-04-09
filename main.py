@@ -93,15 +93,25 @@ class BibliotecaWindow(QMainWindow):
         layout_principal.addLayout(filtros)
 
         self.tabela = QTableWidget(0, 5)
-        self.tabela.setHorizontalHeaderLabels(["ID", "Titulo", "Autor", "Ano", "Status"])
-        self.tabela.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tabela.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.tabela.setHorizontalHeaderLabels(
+            ["ID", "Titulo", "Autor", "Ano", "Status"]
+        )
+        self.tabela.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
+        )
+        self.tabela.setEditTriggers(
+            QTableWidget.EditTrigger.NoEditTriggers
+        )
         self.tabela.setSortingEnabled(True)
         self.tabela.itemSelectionChanged.connect(self._atualizar_estado_botoes)
         cabecalho = self.tabela.horizontalHeader()
         cabecalho.setStretchLastSection(True)
-        cabecalho.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        cabecalho.sortIndicatorChanged.connect(self._ao_mudar_ordenacao)
+        cabecalho.setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        cabecalho.sortIndicatorChanged.connect(
+            self._ao_mudar_ordenacao
+        )
 
         layout_principal.addWidget(QLabel("Livros cadastrados:"))
         layout_principal.addWidget(self.tabela)
@@ -161,18 +171,27 @@ class BibliotecaWindow(QMainWindow):
             return False
 
         if len(titulo) < 2 or len(autor) < 2:
-            QMessageBox.warning(self, "Validacao", "Titulo e autor devem ter ao menos 2 caracteres.")
-            return False
-
-        if len(titulo) > 120 or len(autor) > 120:
-            QMessageBox.warning(self, "Validacao", "Titulo e autor devem ter no maximo 120 caracteres.")
-            return False
-
-        if ano is not None and (ano < 1450 or ano > self.ano_atual):
             QMessageBox.warning(
                 self,
                 "Validacao",
-                f"Ano invalido. Informe entre 1450 e {self.ano_atual}.",
+                "Titulo e autor devem ter ao menos 2 caracteres.",
+            )
+            return False
+
+        if len(titulo) > 120 or len(autor) > 120:
+            QMessageBox.warning(
+                self,
+                "Validacao",
+                "Titulo e autor devem ter no maximo 120 caracteres.",
+            )
+            return False
+
+        if ano is not None and (ano < 1450 or ano > self.ano_atual):
+            mensagem = f"Ano invalido. Informe entre 1450 e {self.ano_atual}."
+            QMessageBox.warning(
+                self,
+                "Validacao",
+                mensagem,
             )
             return False
 
@@ -223,7 +242,9 @@ class BibliotecaWindow(QMainWindow):
         try:
             livro = self.service.obter_livro(livro_id)
             if livro is None:
-                QMessageBox.warning(self, "Atencao", "Livro nao encontrado.")
+                QMessageBox.warning(
+                    self, "Atencao", "Livro nao encontrado."
+                )
                 return
 
             self.input_titulo.setText(livro.titulo)
@@ -232,7 +253,9 @@ class BibliotecaWindow(QMainWindow):
             self._entrar_modo_edicao(livro.id)
             self._notificar("Edicao iniciada.")
         except Exception as exc:
-            QMessageBox.critical(self, "Erro", f"Falha ao iniciar edicao: {exc}")
+            QMessageBox.critical(
+                self, "Erro", f"Falha ao iniciar edicao: {exc}"
+            )
 
     def carregar_livros(self):
         try:
@@ -261,7 +284,9 @@ class BibliotecaWindow(QMainWindow):
 
             self._atualizar_estado_botoes()
         except Exception as exc:
-            QMessageBox.critical(self, "Erro", f"Falha ao carregar livros: {exc}")
+            QMessageBox.critical(
+                self, "Erro", f"Falha ao carregar livros: {exc}"
+            )
 
     def adicionar_livro(self):
         titulo = self.input_titulo.text().strip()
@@ -286,7 +311,9 @@ class BibliotecaWindow(QMainWindow):
         except ValueError as exc:
             QMessageBox.warning(self, "Validacao", str(exc))
         except Exception as exc:
-            QMessageBox.critical(self, "Erro", f"Falha ao adicionar livro: {exc}")
+            QMessageBox.critical(
+                self, "Erro", f"Falha ao adicionar livro: {exc}"
+            )
 
     def marcar_emprestado(self):
         livro_id = self._livro_selecionado_id()
