@@ -1,10 +1,13 @@
 import sys
 from datetime import date
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QApplication,
+    QComboBox,
     QFormLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -18,6 +21,7 @@ from PyQt6.QtWidgets import (
 )
 
 from database import Database
+from services import BibliotecaService
 
 
 class BibliotecaWindow(QMainWindow):
@@ -26,8 +30,11 @@ class BibliotecaWindow(QMainWindow):
         self.setWindowTitle("Sistema de Biblioteca")
         self.resize(760, 500)
         self.ano_atual = date.today().year
+        self.livro_em_edicao_id: int | None = None
+        self.ordem_coluna = "id"
+        self.ordem_direcao = "DESC"
 
-        self.db = Database()
+        self.service = BibliotecaService(Database())
         self._setup_ui()
         self.carregar_livros()
 
@@ -68,11 +75,33 @@ class BibliotecaWindow(QMainWindow):
         botoes_topo.addWidget(self.btn_atualizar)
         layout_principal.addLayout(botoes_topo)
 
+        filtros = QHBoxLayout()
+        self.input_busca = QLineEdit()
+        self.input_busca.setPlaceholderText("Buscar por titulo ou autor")
+        self.input_busca.textChanged.connect(self.carregar_livros)
+
+        self.filtro_status = QComboBox()
+        self.filtro_status.addItem("Todos", "todos")
+        self.filtro_status.addItem("Disponiveis", "disponivel")
+        self.filtro_status.addItem("Emprestados", "emprestado")
+        self.filtro_status.currentIndexChanged.connect(self.carregar_livros)
+
+        filtros.addWidget(QLabel("Buscar:"))
+        filtros.addWidget(self.input_busca)
+        filtros.addWidget(QLabel("Status:"))
+        filtros.addWidget(self.filtro_status)
+        layout_principal.addLayout(filtros)
+
         self.tabela = QTableWidget(0, 5)
         self.tabela.setHorizontalHeaderLabels(["ID", "Titulo", "Autor", "Ano", "Status"])
         self.tabela.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.tabela.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabela.horizontalHeader().setStretchLastSection(True)
+        self.tabela.setSortingEnabled(True)
+        self.tabela.itemSelectionChanged.connect(self._atualizar_estado_botoes)
+        cabecalho = self.tabela.horizontalHeader()
+        cabecalho.setStretchLastSection(True)
+        cabecalho.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        cabecalho.sortIndicatorChanged.connect(self._ao_mudar_ordenacao)
 
         layout_principal.addWidget(QLabel("Livros cadastrados:"))
         layout_principal.addWidget(self.tabela)
@@ -88,10 +117,20 @@ class BibliotecaWindow(QMainWindow):
         self.btn_remover = QPushButton("Remover livro")
         self.btn_remover.clicked.connect(self.remover_livro)
 
+        self.btn_editar = QPushButton("Editar livro")
+        self.btn_editar.clicked.connect(self.iniciar_edicao_livro)
+
+        self.btn_cancelar_edicao = QPushButton("Cancelar edicao")
+        self.btn_cancelar_edicao.clicked.connect(self.cancelar_edicao_livro)
+
         botoes_acao.addWidget(self.btn_emprestar)
         botoes_acao.addWidget(self.btn_devolver)
+        botoes_acao.addWidget(self.btn_editar)
         botoes_acao.addWidget(self.btn_remover)
+        botoes_acao.addWidget(self.btn_cancelar_edicao)
         layout_principal.addLayout(botoes_acao)
+
+        self._atualizar_estado_botoes()
 
     def _notificar(self, mensagem: str):
         self.statusBar().showMessage(mensagem, 4000)
@@ -139,26 +178,88 @@ class BibliotecaWindow(QMainWindow):
 
         return True
 
+    def _atualizar_estado_botoes(self):
+        selecionado = self.tabela.currentRow() >= 0
+        self.btn_emprestar.setEnabled(selecionado)
+        self.btn_devolver.setEnabled(selecionado)
+        self.btn_remover.setEnabled(selecionado)
+        self.btn_editar.setEnabled(selecionado)
+        self.btn_cancelar_edicao.setEnabled(self.livro_em_edicao_id is not None)
+
+    def _ao_mudar_ordenacao(self, indice_coluna: int, ordem):
+        colunas = {
+            0: "id",
+            1: "titulo",
+            2: "autor",
+            3: "ano",
+            4: "disponivel",
+        }
+        self.ordem_coluna = colunas.get(indice_coluna, "id")
+        self.ordem_direcao = "ASC" if ordem == Qt.SortOrder.AscendingOrder else "DESC"
+        self.carregar_livros()
+
+    def _limpar_formulario(self):
+        self.input_titulo.clear()
+        self.input_autor.clear()
+        self.input_ano.setValue(0)
+
+    def _entrar_modo_edicao(self, livro_id: int):
+        self.livro_em_edicao_id = livro_id
+        self.btn_adicionar.setText("Salvar edicao")
+        self._atualizar_estado_botoes()
+
+    def cancelar_edicao_livro(self):
+        self.livro_em_edicao_id = None
+        self.btn_adicionar.setText("Adicionar livro")
+        self._limpar_formulario()
+        self._atualizar_estado_botoes()
+        self._notificar("Edicao cancelada.")
+
+    def iniciar_edicao_livro(self):
+        livro_id = self._livro_selecionado_id()
+        if livro_id is None:
+            return
+
+        try:
+            livro = self.service.obter_livro(livro_id)
+            if livro is None:
+                QMessageBox.warning(self, "Atencao", "Livro nao encontrado.")
+                return
+
+            self.input_titulo.setText(livro.titulo)
+            self.input_autor.setText(livro.autor)
+            self.input_ano.setValue(0 if livro.ano is None else livro.ano)
+            self._entrar_modo_edicao(livro.id)
+            self._notificar("Edicao iniciada.")
+        except Exception as exc:
+            QMessageBox.critical(self, "Erro", f"Falha ao iniciar edicao: {exc}")
+
     def carregar_livros(self):
         try:
-            livros = self.db.listar_livros()
+            livros = self.service.listar_livros(
+                termo=self.input_busca.text().strip(),
+                filtro_status=self.filtro_status.currentData(),
+                ordenar_por=self.ordem_coluna,
+                ordem=self.ordem_direcao,
+            )
             self.tabela.setRowCount(0)
 
             for livro in livros:
                 linha = self.tabela.rowCount()
                 self.tabela.insertRow(linha)
 
-                status = "Disponivel" if livro["disponivel"] == 1 else "Emprestado"
                 valores = [
-                    str(livro["id"]),
-                    livro["titulo"],
-                    livro["autor"],
-                    "" if livro["ano"] is None else str(livro["ano"]),
-                    status,
+                    str(livro.id),
+                    livro.titulo,
+                    livro.autor,
+                    "" if livro.ano is None else str(livro.ano),
+                    livro.status,
                 ]
 
                 for coluna, valor in enumerate(valores):
                     self.tabela.setItem(linha, coluna, QTableWidgetItem(valor))
+
+            self._atualizar_estado_botoes()
         except Exception as exc:
             QMessageBox.critical(self, "Erro", f"Falha ao carregar livros: {exc}")
 
@@ -172,12 +273,18 @@ class BibliotecaWindow(QMainWindow):
             return
 
         try:
-            self.db.adicionar_livro(titulo, autor, ano)
-            self.input_titulo.clear()
-            self.input_autor.clear()
-            self.input_ano.setValue(0)
+            if self.livro_em_edicao_id is None:
+                self.service.adicionar_livro(titulo, autor, ano)
+                self._notificar("Livro adicionado com sucesso.")
+            else:
+                self.service.editar_livro(self.livro_em_edicao_id, titulo, autor, ano)
+                self.cancelar_edicao_livro()
+                self._notificar("Livro atualizado com sucesso.")
+
+            self._limpar_formulario()
             self.carregar_livros()
-            self._notificar("Livro adicionado com sucesso.")
+        except ValueError as exc:
+            QMessageBox.warning(self, "Validacao", str(exc))
         except Exception as exc:
             QMessageBox.critical(self, "Erro", f"Falha ao adicionar livro: {exc}")
 
@@ -186,15 +293,12 @@ class BibliotecaWindow(QMainWindow):
         if livro_id is None:
             return
 
-        status = self._livro_selecionado_status()
-        if status == "Emprestado":
-            QMessageBox.information(self, "Aviso", "O livro selecionado ja esta emprestado.")
-            return
-
         try:
-            self.db.atualizar_disponibilidade(livro_id, 0)
+            self.service.marcar_emprestado(livro_id)
             self.carregar_livros()
             self._notificar("Livro marcado como emprestado.")
+        except ValueError as exc:
+            QMessageBox.information(self, "Aviso", str(exc))
         except Exception as exc:
             QMessageBox.critical(self, "Erro", f"Falha ao atualizar livro: {exc}")
 
@@ -203,15 +307,12 @@ class BibliotecaWindow(QMainWindow):
         if livro_id is None:
             return
 
-        status = self._livro_selecionado_status()
-        if status == "Disponivel":
-            QMessageBox.information(self, "Aviso", "O livro selecionado ja esta disponivel.")
-            return
-
         try:
-            self.db.atualizar_disponibilidade(livro_id, 1)
+            self.service.marcar_devolvido(livro_id)
             self.carregar_livros()
             self._notificar("Livro marcado como devolvido.")
+        except ValueError as exc:
+            QMessageBox.information(self, "Aviso", str(exc))
         except Exception as exc:
             QMessageBox.critical(self, "Erro", f"Falha ao atualizar livro: {exc}")
 
@@ -230,9 +331,13 @@ class BibliotecaWindow(QMainWindow):
             return
 
         try:
-            self.db.remover_livro(livro_id)
+            self.service.remover_livro(livro_id)
+            if self.livro_em_edicao_id == livro_id:
+                self.cancelar_edicao_livro()
             self.carregar_livros()
             self._notificar("Livro removido com sucesso.")
+        except ValueError as exc:
+            QMessageBox.information(self, "Aviso", str(exc))
         except Exception as exc:
             QMessageBox.critical(self, "Erro", f"Falha ao remover livro: {exc}")
 

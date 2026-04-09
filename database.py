@@ -142,12 +142,62 @@ class Database:
             )
             conn.commit()
 
-    def listar_livros(self):
+    def listar_livros(
+        self,
+        termo: str | None = None,
+        disponivel: int | None = None,
+        ordenar_por: str = "id",
+        ordem: str = "DESC",
+    ):
+        colunas_validas = {"id", "titulo", "autor", "ano", "disponivel", "criado_em", "atualizado_em"}
+        coluna_ordenacao = ordenar_por if ordenar_por in colunas_validas else "id"
+        direcao_ordenacao = "ASC" if ordem.upper() == "ASC" else "DESC"
+
+        sql = "SELECT id, titulo, autor, ano, disponivel, criado_em, atualizado_em FROM livros"
+        filtros = []
+        parametros: list[object] = []
+
+        if termo:
+            filtros.append("(titulo LIKE ? OR autor LIKE ?)")
+            termo_like = f"%{termo.strip()}%"
+            parametros.extend([termo_like, termo_like])
+
+        if disponivel in (0, 1):
+            filtros.append("disponivel = ?")
+            parametros.append(disponivel)
+
+        if filtros:
+            sql += " WHERE " + " AND ".join(filtros)
+
+        sql += f" ORDER BY {coluna_ordenacao} {direcao_ordenacao}"
+
+        with self._get_connection() as conn:
+            cursor = conn.execute(sql, parametros)
+            return cursor.fetchall()
+
+    def obter_livro(self, livro_id: int):
         with self._get_connection() as conn:
             cursor = conn.execute(
-                "SELECT id, titulo, autor, ano, disponivel FROM livros ORDER BY id DESC"
+                """
+                SELECT id, titulo, autor, ano, disponivel, criado_em, atualizado_em
+                FROM livros
+                WHERE id = ?
+                """,
+                (livro_id,),
             )
-            return cursor.fetchall()
+            return cursor.fetchone()
+
+    def atualizar_livro(self, livro_id: int, titulo: str, autor: str, ano: int | None):
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE livros
+                SET titulo = ?, autor = ?, ano = ?, atualizado_em = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (titulo.strip(), autor.strip(), ano, livro_id),
+            )
+            conn.commit()
 
     def atualizar_disponibilidade(self, livro_id: int, disponivel: int):
         with self._get_connection() as conn:
