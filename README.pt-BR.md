@@ -6,6 +6,8 @@ Projeto simples de biblioteca com:
 - Interface grafica em PyQt6
 - Banco de dados SQLite
 - Script SQL para criar a tabela
+- Regras de integridade no banco (constraints)
+- Migracoes versionadas via PRAGMA user_version
 
 ## Funcionalidades
 - Adicionar livro
@@ -13,6 +15,13 @@ Projeto simples de biblioteca com:
 - Marcar livro como emprestado
 - Marcar livro como devolvido
 - Remover livro
+
+## Regras de banco (fase 2)
+- `titulo` e `autor` nao podem ser vazios
+- `ano` deve ser `NULL` ou entre `1450` e `2100`
+- `disponivel` so aceita `0` ou `1`
+- Colunas de auditoria: `criado_em` e `atualizado_em`
+- Indices em `titulo` e `autor`
 
 ## Estrutura
 - `main.py`: interface grafica
